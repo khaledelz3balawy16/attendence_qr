@@ -1,0 +1,226 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Student Login</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --card: #fffdfa;
+      --accent: #0a5c36;
+      --text: #1f2937;
+      --err: #b91c1c;
+      --muted: #6b7280;
+    }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+      background: radial-gradient(circle at 20% 20%, #e7dbc8, var(--bg));
+      color: var(--text);
+    }
+    .card {
+      width: min(92vw, 420px);
+      background: var(--card);
+      border: 1px solid #e5e7eb;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(0,0,0,.08);
+    }
+    input, button {
+      width: 100%;
+      box-sizing: border-box;
+      border-radius: 10px;
+      font-size: 1rem;
+    }
+    .input-label {
+      display: block;
+      margin-bottom: 8px;
+      font-weight: 600;
+    }
+    input {
+      border: 1px solid #d1d5db;
+      padding: 12px 44px 12px 12px;
+      margin: 0;
+    }
+    .email-wrap {
+      margin-bottom: 12px;
+    }
+    .email-input-wrap {
+      position: relative;
+    }
+    .email-status {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.1rem;
+      color: var(--muted);
+      user-select: none;
+      pointer-events: none;
+    }
+    .email-status.ok { color: var(--accent); }
+    .email-status.error { color: var(--err); }
+    button {
+      border: 0;
+      padding: 12px;
+      font-weight: 600;
+      background: var(--accent);
+      color: white;
+      cursor: pointer;
+    }
+    button:disabled { opacity: .7; cursor: wait; }
+    #msg { margin-top: 12px; min-height: 1.2em; }
+    .error { color: var(--err); }
+    .ok {
+      color: var(--accent);
+      font-size: 1.15rem;
+      font-weight: 700;
+    }
+    .student-info {
+      margin-top: 10px;
+      padding: 10px;
+      border: 1px solid #e5e7eb;
+      border-radius: 8px;
+      background: #faf8f3;
+      font-size: 0.95rem;
+      display: grid;
+      gap: 6px;
+    }
+    .student-info strong { color: #111827; }
+    .student-info[hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <form id="loginForm">
+      <div class="email-wrap">
+        <label class="input-label" for="email">Aptem Email:</label>
+        <div class="email-input-wrap">
+          <input id="email" type="email" placeholder="Enter your Aptem email" required />
+          <span id="emailStatus" class="email-status" aria-hidden="true"></span>
+        </div>
+      </div>
+      <input id="studentId" type="hidden" />
+      <button id="submitBtn" type="submit">Submit</button>
+      <div id="msg" aria-live="polite"></div>
+      <div id="studentInfo" class="student-info" hidden>
+        <div><strong>Name:</strong> <span id="studentName"></span></div>
+        <div><strong>Group:</strong> <span id="studentGroup"></span></div>
+      </div>
+    </form>
+  </main>
+
+  <script>
+    const form = document.getElementById('loginForm');
+    const emailInput = document.getElementById('email');
+    const emailStatus = document.getElementById('emailStatus');
+    const studentIdInput = document.getElementById('studentId');
+    const submitBtn = document.getElementById('submitBtn');
+    const msg = document.getElementById('msg');
+    const studentInfo = document.getElementById('studentInfo');
+    const studentName = document.getElementById('studentName');
+    const studentGroup = document.getElementById('studentGroup');
+
+    function setMessage(text, type) {
+      msg.textContent = text;
+      msg.className = type;
+    }
+
+    function setStatus(symbol, type) {
+      emailStatus.textContent = symbol;
+      emailStatus.className = `email-status ${type}`;
+    }
+
+    function clearStudentInfo() {
+      studentIdInput.value = '';
+      studentName.textContent = '';
+      studentGroup.textContent = '';
+      studentInfo.hidden = true;
+    }
+
+    function showStudentInfo(studentId, name, group) {
+      const hasName = !!(name && name.trim());
+      const hasGroup = !!(group && group.trim());
+
+      if (!hasName && !hasGroup) {
+        clearStudentInfo();
+        return;
+      }
+
+      studentIdInput.value = studentId !== undefined && studentId !== null ? String(studentId) : '';
+      studentName.textContent = hasName ? name : '';
+      studentGroup.textContent = hasGroup ? group : '';
+      studentInfo.hidden = false;
+    }
+
+    function isValidAptemEmail(value) {
+      const email = value.trim();
+      if (!email) return false;
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+    }
+
+    emailInput.addEventListener('input', () => {
+      submitBtn.disabled = false;
+      setStatus('', '');
+      setMessage('', '');
+      clearStudentInfo();
+    });
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const email = emailInput.value.trim();
+      let lockSubmit = false;
+      setMessage('', '');
+      clearStudentInfo();
+
+      if (!isValidAptemEmail(email)) {
+        setStatus('\u2717', 'error');
+        setMessage('Please enter your Aptem email', 'error');
+        return;
+      }
+
+      submitBtn.disabled = true;
+
+      try {
+        const response = await fetch('/api/auth/student-login/', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email })
+        });
+
+        const contentType = response.headers.get('content-type') || '';
+        const data = contentType.includes('application/json')
+          ? await response.json()
+          : { detail: await response.text() };
+
+        if (response.ok && data.ok) {
+          setStatus('\u2713', 'ok');
+          setMessage('Attendance recorded successfully.', 'ok');
+          showStudentInfo(data.student_id, data.name || '', data.group || '');
+          return;
+        }
+
+        setStatus('\u2717', 'error');
+        setMessage(data.detail || 'Please enter your Aptem email', 'error');
+        if (response.status === 429) {
+          lockSubmit = true;
+          setMessage(data.detail || 'Attendance already recorded.', 'error');
+          submitBtn.disabled = true;
+        }
+      } catch (error) {
+        setStatus('\u2717', 'error');
+        setMessage('Cannot reach backend. Open this page from Django server: http://127.0.0.1:8000/', 'error');
+      } finally {
+        if (!lockSubmit) {
+          submitBtn.disabled = false;
+        }
+      }
+    });
+  </script>
+</body>
+</html>
